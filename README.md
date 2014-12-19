@@ -14,9 +14,9 @@ The `maestro` library is responsible for providing convenient APIs for marshalli
 orchestrating data around for etl type work.
 
 The primary goal of `maestro` is to provide the ability to make it _easy_ to manage
-data sets with out sacrificing safety or robustness. This is achieved by sticking
-with strongly-typed schemas describing the fixed structure of data, and working on
-APIs for manipulating those structures in a sensible way that it can scale to data-sets
+data sets with out sacrificing safety or robustness. This is achieved by 
+adopting strongly-typed schemas describing the fixed structure of data, and working on
+APIs for manipulating those structures in a sensible way that scales to data-sets
 with 100s of columns.
 
 [Scaladoc](https://commbank.github.io/maestro/latest/api/index.html)
@@ -76,11 +76,74 @@ This is a simplified example, a real data set may have 100s of
 columns, but it should be enough to demonstrate. The important points
 here are that _order_ is important, the struct should be defined to
 have fields in the same order as input data, and _types_ are
-important, they should accurately descript the data (and will be used
+important, they should accurately describe the data (and will be used
 to infer how the data should be parsed and validated).
 
 
-### Building a pipeline from the built in tools
+### Building a pipeline from the built in tools (via `Execution`)
+
+A pipeline is defined via a scalding `Execution`, generally involving
+multiple steps, with each step potentially depending on the results of
+previous steps.  This is often neatly expressed as a Scala
+`for`-`yield` comprehension like in the example below.
+
+The basic steps in a pipeline can include scalding jobs, hive queries,
+sqoop import/export, hdfs operations (very soon) and other `maestro` Executions.
+
+An example execution pipeline that loads data via hive follows.
+
+```scala
+import org.apache.hadoop.hive.conf.HiveConf.ConfVars._
+
+import au.com.cba.omnia.maestro.api.exec._
+import au.com.cba.omnia.maestro.api.exec.Maestro._
+import au.com.cba.omnia.maestro.example.thrift.{Account, Customer}
+
+/** Configuration for a customer execution example */
+case class CustomerConfig(config: Config) extends MacroSupport[Customer] {
+  val maestro   = MaestroConfig(
+    conf        = config,
+    source      = "customer",
+    domain      = "customer",
+    tablename   = "customer"
+  )
+  val upload    = maestro.upload()
+  val load      = maestro.load(
+    none        = "null"
+  )
+  val dateTable = maestro.partitionedHiveTable[Customer, (String, String, String)](
+    partition   = Partition.byDate(Fields.EffectiveDate),
+    tablename   = "by_date"
+  )
+  val catTable  = maestro.partitionedHiveTable[Customer, String](
+    partition   = Partition.byField(Fields.Cat),
+    tablename   = "by_cat"
+  )
+  val writeToCatTableQuery = QueryConfig(
+    name        = "test",
+    settings    = Map(HIVEMERGEMAPFILES -> "true"),
+    s"INSERT OVERWRITE TABLE ${catTable.name} PARTITION (partition_cat) SELECT id, name, acct, cat, sub_cat, -10, effective_date, cat AS partition_cat FROM ${dateTable.name}",
+    s"SELECT COUNT(*) FROM ${catTable.name}"
+  )
+}
+
+/** Customer execution example */
+object CustomerExecution extends MacroSupport[Customer] {
+
+  /** Create an example customer execution */
+  def execute: Execution[(LoadSuccess, Long)] = for {
+    conf           <- Execution.getConfig.map(CustomerConfig(_))
+    uploadInfo     <- upload(conf.upload)
+    sources        <- uploadInfo.withSources
+    (pipe, ldInfo) <- load[Customer](conf.load, uploadInfo.files)
+    loadSuccess    <- ldInfo.withSuccess
+    (count1, _)    <- viewHive(conf.dateTable, pipe) zip viewHive(conf.catTable, pipe)
+    _              <- hiveQuery(conf.writeToCatTableQuery)
+  } yield (loadSuccess, count1)
+}
+```
+
+### Building a cascade pipeline from the built in tools (pre-`Execution`)
 
 A pipeline is defined in terms of a `cascade`. This terminology comes
 from the underlying technology used, but it is easier to think of it
@@ -95,12 +158,11 @@ be easily handled by hive or raw scalding jobs.
 A pipeline built only from `maestro` tasks.
 
 ```scala
-
 import com.twitter.scalding._
 import au.com.cba.omnia.maestro._
 import au.com.cba.omnia.etl.customer.thrift._
 
-class CustomerCuscade(args: Args) extends CascadeJob(args) with MaestroSupport[Customer] {
+class CustomerCascade(args: Args) extends CascadeJob(args) with MaestroSupport[Customer] {
   val maestro = Maestro(args)
 
   val delimiter     = "|$|"
@@ -132,7 +194,6 @@ class CustomerCuscade(args: Args) extends CascadeJob(args) with MaestroSupport[C
     maestro.sqoop(clean, output, filters)
   )
 }
-
 ```
 
 Hive
@@ -197,7 +258,9 @@ You can start with the [example hive-site.xml](doc/hive-site.xml).  To use this 
 install it on your cluster, or
 add it to your project's resources directory so that it is included in your jar.
 
-### Example
+For an example, see the earlier quick start execution pipeline example.
+
+### Example (old pre-`Execution` version)
 
 ```scala
 import scalaz.{Tag => _, _}, Scalaz._
