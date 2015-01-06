@@ -48,7 +48,6 @@ object SqoopImportExecutionSpec
   imports data from DB to HDFS using SQL query $endToEndImportWithSqlQuery
   handles exceptions while importing data      $endToEndImportWithException
   handles exceptions while table not set       $endToEndImportWithoutTable
-
 """
   val connectionString = "jdbc:hsqldb:mem:sqoopdb"
   val username         = "sa"

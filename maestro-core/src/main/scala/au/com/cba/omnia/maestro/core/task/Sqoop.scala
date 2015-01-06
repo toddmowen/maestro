@@ -31,7 +31,6 @@ import com.cba.omnia.edge.source.compressible.CompressibleTypedTsv
 import au.com.cba.omnia.parlour.SqoopSyntax.{ParlourExportDsl, ParlourImportDsl}
 import au.com.cba.omnia.parlour._
 
-import au.com.cba.omnia.maestro.core.args.ModArgs
 
 /**
  * Import and export data between a database and HDFS.
@@ -42,20 +41,6 @@ import au.com.cba.omnia.maestro.core.args.ModArgs
  * the [[Sqoop]] API
  */
 trait Sqoop {
-
-  /**
-   * Archive Job for data imported by sqoop
-   *
-   * @param importPath: Path pointing to the folder to archive
-   * @param archivePath: Path pointing to the archive location
-   */
-  protected class ArchiveDirectoryJob(importPath: String, archivePath: String)(args: Args)
-      extends Job(ModArgs.compressOutput[GzipCodec].modify(args)) {
-
-    TypedPipe.from(TextLine(importPath)).write(CompressibleTypedTsv[String](archivePath))
-
-    override def validate = () // default scalding validate chokes with cascades
-  }
 
   /**
    * Convenience method to populate a parlour import option instance
@@ -91,7 +76,7 @@ trait Sqoop {
 
   /**
    * Convenience method to populate a parlour import option instance.
-   * Use it when you want to use SQL Select query to fetch data. 
+   * Use it when you want to use SQL Select query to fetch data.
    *
    * @param connectionString: database connection string
    * @param username: database username
@@ -99,7 +84,7 @@ trait Sqoop {
    * @param query: SQL Select query
    * @param outputFieldsTerminatedBy: output field terminating character
    * @param nullString: The string to be written for a null value in columns
-   * @param splitBy: splitting column; if None, then `numberOfMappers` is set to 1 
+   * @param splitBy: splitting column; if None, then `numberOfMappers` is set to 1
    * @param options: parlour option to populate
    * @return : Populated parlour option
    */
@@ -140,70 +125,6 @@ trait Sqoop {
     logger.info(s"targetDir        = ${sqoopOptions.getTargetDir}")
     new ImportSqoopJob(options)(args)
   }
-
-  /**
-   * Runs a sqoop import from a database table to HDFS.
-   *
-   * Data will be copied to a path that is generated. For a given `domain`,`tableName` and `timePath`, a path
-   * `\$hdfsRoot/source/\$source/\$domain/\$tableName/\$timePath` is generated.
-   *
-   * Use [[Sqoop.createSqoopImportOptions]] to populate the [[ParlourImportOptions]] parameter.
-   *
-   * @param hdfsRoot: Root directory of HDFS
-   * @param source: Source system
-   * @param domain: Database within source
-   * @param timePath: custom timepath to import data into
-   * @param options: Sqoop import options
-   * @param tableName: Table name used in the import path (if not set then options.tableName is used)
-   * @return Tuple of Seq of jobs for this import and import directory.
-   */
-  def sqoopImport[T <: ParlourImportOptions[T]](
-    hdfsRoot: String,
-    source: String,
-    domain: String,
-    timePath: String,
-    options: T,
-    tableName: Option[String] = None
-  )(args: Args)(implicit flowDef: FlowDef, mode: Mode): (Seq[Job], String) = {
-    val dstTableName = tableName.getOrElse(
-      options.getTableName.getOrElse(throw new RuntimeException("Table name must be set either in ParlourImportOptions or provided as parameter"))
-    )
-
-    val importPath = List(hdfsRoot, "source", source, domain, dstTableName, timePath) mkString File.separator
-    val archivePath = List(hdfsRoot, "archive", source, domain, dstTableName, timePath) mkString File.separator
-    val finalOptions = options.targetDir(importPath)
-    (Seq(customSqoopImport(finalOptions)(args),
-      new ArchiveDirectoryJob(importPath, archivePath)(args)), importPath)
-  }
-
-  /**
-   * Runs a sqoop import from a database table to HDFS.
-   * Data is fetched using SQL query provided in `options`.
-   * 
-   * WARNING: `options.tableName` should not be set. Otherwise Sqoop will not use SQL query.
-   * 
-   * Data will be copied to a path that is generated. For a given `domain`,`tableName` and `timePath`, a path
-   * `\$hdfsRoot/source/\$source/\$domain/\$tableName/\$timePath` is generated.
-   *
-   * Use [[Sqoop.createSqoopImportOptionsWithQuery]] to populate the [[ParlourImportOptions]] parameter.
-   *
-   * @param hdfsRoot: Root directory of HDFS
-   * @param source: Source system
-   * @param domain: Database within source
-   * @param timePath: custom timepath to import data into
-   * @param tableName: Table name used in the import path
-   * @param options: Sqoop import options
-   * @return Tuple of Seq of jobs for this import and import directory.
-   */
-  def sqoopImportWithQuery[T <: ParlourImportOptions[T]](
-    hdfsRoot: String,
-    source: String,
-    domain: String,
-    timePath: String,
-    tableName: String,
-    options: T
-  )(args: Args)(implicit flowDef: FlowDef, mode: Mode): (Seq[Job], String) = 
-    sqoopImport(hdfsRoot, source, domain, timePath, options, Some(tableName))(args)
 
   /**
    * Runs a sqoop export from HDFS to a database table.

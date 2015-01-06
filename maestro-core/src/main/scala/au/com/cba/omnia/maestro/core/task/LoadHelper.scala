@@ -40,6 +40,7 @@ import au.com.cba.omnia.maestro.core.split.Splitter
 import au.com.cba.omnia.maestro.core.time.TimeSource
 import au.com.cba.omnia.maestro.core.validate.Validator
 
+case class RawRow(line: String, extraFields: List[String])
 
 /**
   * Contains implementation for `loadFoo` methods in `Load` trait.
@@ -190,7 +191,7 @@ object LoadHelper {
   * (map task number) to create a unique key for each line.
   * It also gets the path from cascading and extracts the time from that using the provided
   * `timeSource`.
-  */ 
+  */
 class GenerateKey(timeSource: TimeSource, hashes: Map[String, String])
     extends BaseOperation[(ByteBuffer, MessageDigest, String, Tuple)](('result))
     with Function[(ByteBuffer, MessageDigest, String, Tuple)] {

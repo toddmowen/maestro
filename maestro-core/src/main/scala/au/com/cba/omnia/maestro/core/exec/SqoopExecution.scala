@@ -94,9 +94,9 @@ object SqoopImportConfig {
    * @param query: SQL Select query
    * @param outputFieldsTerminatedBy: output field terminating character
    * @param nullString: The string to be written for a null value in columns
-   * @param splitBy: splitting column; if None, then `numberOfMappers` is set to 1 
+   * @param splitBy: splitting column; if None, then `numberOfMappers` is set to 1
    * @param options: parlour option to populate
-   * 
+   *
    * @return : Populated parlour option
    */
   def optionsWithQuery[T <: ParlourImportOptions[T] : Monoid](
