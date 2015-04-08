@@ -7,18 +7,27 @@ class GuardSpec extends ThermometerSpec { def is = s2"""
 HDFS Guard properties
 =====================
 
-  glob expands to matching dirs                   $globIncludesDirectories
+  expandPaths matches globbed dirs                $matchesGlobbedDirs
+  expandPaths skips files                         $skipsFiles
   expandPaths skips processed dirs                $skipsProcessed
   expandTransferredPaths skips uningested dirs    $skipsUningested
 """
 
-  def globIncludesDirectories = {
+  def matchesGlobbedDirs = {
     withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
       Guard.expandPaths(s"$dir/user/a*") must_== List(
         s"file:$dir/user/a",
         s"file:$dir/user/a1"
-        // excludes "a2" because it is a file
-        // excludes "b" because it doesn't match the glob
+        // excludes various other directories that don't match the glob
+      )
+    }
+  }
+
+  def skipsFiles = {
+    withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
+      Guard.expandPaths(s"$dir/user/b*") must_== List(
+        s"file:$dir/user/b1"
+        // excludes "b2" because it's not a directory
       )
     }
   }
