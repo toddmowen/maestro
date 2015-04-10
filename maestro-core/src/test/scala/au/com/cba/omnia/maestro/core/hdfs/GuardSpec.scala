@@ -7,13 +7,16 @@ class GuardSpec extends ThermometerSpec { def is = s2"""
 HDFS Guard properties
 =====================
 
-  expandPaths matches globbed dirs                $matchesGlobbedDirs
-  expandPaths skips files                         $skipsFiles
-  expandPaths skips processed dirs                $skipsProcessed
-  expandTransferredPaths skips uningested dirs    $skipsUningested
+  expandPaths:
+    matches globbed dirs               $expandPaths_matchesGlobbedDirs
+    skips files                        $expandPaths_skipsFiles
+    skips processed dirs               $expandPaths_skipsProcessed
+
+  expandTransferredPaths:
+    skips uningested dirs              $expandTransferredPaths_skipsUningested
 """
 
-  def matchesGlobbedDirs = {
+  def expandPaths_matchesGlobbedDirs = {
     withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
       Guard.expandPaths(s"$dir/user/a*") must_== List(
         s"file:$dir/user/a",
@@ -23,7 +26,7 @@ HDFS Guard properties
     }
   }
 
-  def skipsFiles = {
+  def expandPaths_skipsFiles = {
     withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
       Guard.expandPaths(s"$dir/user/b*") must_== List(
         s"file:$dir/user/b1"
@@ -32,7 +35,7 @@ HDFS Guard properties
     }
   }
 
-  def skipsProcessed = {
+  def expandPaths_skipsProcessed = {
     withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
       Guard.expandPaths(s"$dir/user/c*") must_== List(
         s"file:$dir/user/c",
@@ -42,7 +45,7 @@ HDFS Guard properties
     }
   }
 
-  def skipsUningested = {
+  def expandTransferredPaths_skipsUningested = {
     withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
       Guard.expandTransferredPaths(s"$dir/user/c*") must_== List(
         s"file:$dir/user/c_transferred"
