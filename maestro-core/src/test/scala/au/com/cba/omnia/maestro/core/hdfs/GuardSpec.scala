@@ -14,6 +14,10 @@ HDFS Guard properties
 
   expandTransferredPaths:
     skips uningested dirs              $expandTransferredPaths_skipsUningested
+
+  listNonEmptyFiles:
+    lists non-empty files              $listNonEmptyFiles_listsNonEmptyFiles
+    skips subdirectories               $listNonEmptyFiles_skipsSubdirectories
 """
 
   def expandPaths_matchesGlobbedDirs = {
@@ -51,6 +55,24 @@ HDFS Guard properties
         s"file:$dir/user/c_transferred"
         // excludes "c"
         // excludes "c_processed"
+      )
+    }
+  }
+
+  def listNonEmptyFiles_listsNonEmptyFiles = {
+    withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
+      Guard.listNonEmptyFiles(List(s"$dir/user/a", s"$dir/user/c")) must_== List(
+        s"file:$dir/user/c/c.dat"
+        // excludes "a/a.dat" because it is zero-length
+      )
+    }
+  }
+
+  def listNonEmptyFiles_skipsSubdirectories = {
+    withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
+      Guard.listNonEmptyFiles(List(s"$dir/user")) must_== List(
+        s"file:$dir/user/b2"
+        // excludes all subdirectories
       )
     }
   }
