@@ -1,5 +1,7 @@
 package au.com.cba.omnia.maestro.core.hdfs
 
+import java.io.File
+
 import au.com.cba.omnia.thermometer.core.{ThermometerSpec, Thermometer}, Thermometer._
 
 class GuardSpec extends ThermometerSpec { def is = s2"""
@@ -18,6 +20,9 @@ HDFS Guard properties
   listNonEmptyFiles:
     lists non-empty files              $listNonEmptyFiles_listsNonEmptyFiles
     skips subdirectories               $listNonEmptyFiles_skipsSubdirectories
+
+  createFlagFile:
+    creates _PROCESSED                 $createFlagFile_createsPROCESSED
 """
 
   def expandPaths_matchesGlobbedDirs = {
@@ -74,6 +79,14 @@ HDFS Guard properties
         s"file:$dir/user/b2"
         // excludes all subdirectories
       )
+    }
+  }
+
+  def createFlagFile_createsPROCESSED = {
+    withEnvironment(path(getClass.getResource("/hdfs-guard").toString)) {
+      Guard.createFlagFile(List(s"$dir/user/a1", s"$dir/user/b1"))
+      new File(s"$dir/user/a1/_PROCESSED").exists() must beTrue
+      new File(s"$dir/user/b1/_PROCESSED").exists() must beTrue
     }
   }
 
