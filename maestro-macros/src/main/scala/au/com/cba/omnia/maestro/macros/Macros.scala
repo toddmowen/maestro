@@ -16,7 +16,7 @@ package au.com.cba.omnia.maestro.macros
 
 import com.twitter.scrooge._
 
-import au.com.cba.omnia.maestro.core.codec._
+import au.com.cba.omnia.maestro.core.codec, codec._
 import au.com.cba.omnia.maestro.core.transform.{Transform, Join}
 
 object Macros {
@@ -93,10 +93,19 @@ trait MacroSupport {
     macro TagMacro.impl[A]
 
   /** Macro generated Fields for a Thrift struct. */
-  implicit def DerivedFields[A <: ThriftStruct]: Fields[A] =
+  implicit def DerivedFields[A <: ThriftStruct]: codec.Fields[A] =
     macro FieldsMacro.impl[A]
 
-  /** Macro generated structural type containing the fields for a Thrift struct. */
+  /** Macro generated structural type containing the fields for a Thrift struct.
+    *
+    * This can only be used with concrete type as the type parameter. If you just need
+    * the [[AllFields]] member (i.e. a list of the fields), then your other option is
+    * to obtain an implicit instance of [[au.com.cba.omnia.maestro.core.codec.Fields]].
+    * This has the benefit that it can be used in a generic context. Example:
+    *
+    *     import au.com.cba.omnia.maestro.macros.DerivedFields
+    *     val fieldList = implicitly[Fields[A]].AllFields
+    */
   // NOTE: This isn't really any, it is a structural type containing all the fields.
   def Fields[A <: ThriftStruct]: Any =
     macro FieldsMacro.impl[A]
