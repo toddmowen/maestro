@@ -31,6 +31,11 @@ The fields macro creates fields
   that can extract a value for humbug           $extractHumbug
   that can extract a value for scrooge          $extractScrooge
   that satisfies an equality test               $satisfiesEquality
+
+The fields macro supplies a typeclass that provides
+
+  the list of fields in a humbug thrift         $typeclassHumbug
+  the list of fields in a scrooge thrift        $typeclassScrooge
 """
 
   val humbugFields  = Macros.mkFields[HTypes]
@@ -58,8 +63,6 @@ The fields macro creates fields
     scroogeFields.StringField.get(t) === t.stringField
     scroogeFields.LongField.get(t)   === t.longField
     scroogeFields.DoubleField.get(t) === t.doubleField
-
-
   }
 
   def satisfiesEquality = {
@@ -69,5 +72,16 @@ The fields macro creates fields
 
     fieldList must have size 7
     fieldList.contains(stringField) === true
+  }
+
+  // Example of a function taking a thrift struct as the type parameter
+  def genericFieldCount[T : Fields] = implicitly[Fields[T]].AllFields.size
+
+  def typeclassHumbug = {
+    genericFieldCount[HTypes] must_== 7
+  }
+
+  def typeclassScrooge = {
+    genericFieldCount[STypes] must_== 7
   }
 }
