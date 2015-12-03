@@ -44,7 +44,9 @@ object FieldsMacro {
     }
 
     val refs = entries.map { case (_, name, _) => q"${TermName(name.capitalize)}" }
-    val r    = q"class FieldsWrapper { ..$fields; def AllFields = List(..$refs) }; new FieldsWrapper {}"
+    val r    = q"""class FieldsWrapper extends au.com.cba.omnia.maestro.core.codec.Fields[$typ] {
+                 ..$fields; def AllFields = List(..$refs)
+               }; new FieldsWrapper {}"""
     c.Expr(r)
   }
 }

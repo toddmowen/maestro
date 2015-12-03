@@ -92,6 +92,10 @@ trait MacroSupport {
   implicit def DerivedTag[A <: ThriftStruct]: Tag[A] =
     macro TagMacro.impl[A]
 
+  /** Macro generated Fields for a Thrift struct. */
+  implicit def DerivedFields[A <: ThriftStruct]: Fields[A] =
+    macro FieldsMacro.impl[A]
+
   /** Macro generated structural type containing the fields for a Thrift struct. */
   // NOTE: This isn't really any, it is a structural type containing all the fields.
   def Fields[A <: ThriftStruct]: Any =

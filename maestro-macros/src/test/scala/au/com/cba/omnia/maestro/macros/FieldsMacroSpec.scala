@@ -14,6 +14,9 @@
 
 package au.com.cba.omnia.maestro.macros
 
+import au.com.cba.omnia.maestro.core.codec.Fields
+import MacroSupport.DerivedFields
+
 import au.com.cba.omnia.maestro.test.Spec
 import au.com.cba.omnia.maestro.test.Arbitraries._
 import au.com.cba.omnia.maestro.test.thrift.humbug.{Types => HTypes}
@@ -32,7 +35,7 @@ The fields macro creates fields
   that can extract a value for scrooge          $extractScrooge
   that satisfies an equality test               $satisfiesEquality
 
-The fields macro supplies a typeclass that provides
+The fields macro supplies an implicit typeclass instance that provides
 
   the list of fields in a humbug thrift         $typeclassHumbug
   the list of fields in a scrooge thrift        $typeclassScrooge
@@ -74,7 +77,7 @@ The fields macro supplies a typeclass that provides
     fieldList.contains(stringField) === true
   }
 
-  // Example of a function taking a thrift struct as the type parameter
+  // Example of a function (used in subsequent tests) requiring implicit evidence of Fields[T]
   def genericFieldCount[T : Fields] = implicitly[Fields[T]].AllFields.size
 
   def typeclassHumbug = {
