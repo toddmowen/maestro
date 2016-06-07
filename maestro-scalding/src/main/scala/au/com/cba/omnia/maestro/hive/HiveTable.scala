@@ -34,12 +34,8 @@ import au.com.cba.omnia.maestro.core.partition.Partition
 import au.com.cba.omnia.maestro.scalding.ConfHelper
 import au.com.cba.omnia.maestro.scalding.ExecutionOps._
 
-/**
-  * Base type for partitioned and unpartitioned Hive tables.
-  * ST - Type parameter of [[TypedSink]] and [[TypedPipe]]
-  * returned in `sink` and `write` methods respectively.
-  */
-sealed trait HiveTable[T <: ThriftStruct, ST] {
+/** Base type for sourcing a hive table as [[TypedPipe]] */
+sealed trait HiveTableSource[T <: ThriftStruct] {
   /** Fully qualified SQL reference to table.*/
   val name: String = s"$database.$table"
 
@@ -54,38 +50,48 @@ sealed trait HiveTable[T <: ThriftStruct, ST] {
 
   /** Creates a scalding source to read from the hive table.*/
   def source: Mappable[T]
-  /** Creates [[Execution]] that writes to `this.sink` using given [[TypedPipe]].*/
+}
+
+/**
+  * Base type for hive table with write support.
+  * ST - Type parameter of [[TypedSink]] and [[TypedPipe]] (Kept for backward compatibility)
+  * returned in `sink` and `write` methods respectively.
+  */
+trait HiveTable[T <: ThriftStruct, ST] extends HiveTableSource[T] {
+  /** Create [[Execution]] that writes the given [[TypedPipe]].*/
   def writeExecution(pipe: TypedPipe[T], append: Boolean = true): Execution[ExecutionCounters]
 }
 
-/** Information need to address/describe a specific partitioned hive table.*/
-case class PartitionedHiveTable[A <: ThriftStruct : Manifest, B : Manifest : TupleSetter](
-  database: String, table: String, partition: Partition[A, B], 
-  externalPath: Option[String] = None, partitionBatchSize: Int = 100
-) extends HiveTable[A, (B, A)] {
-
+/**
+  * Write support for a partitioned Hive Table.
+  * P - Type of partition.
+  */
+class GenericPartitionedHiveTable[T <: ThriftStruct : Manifest, P : Manifest : TupleSetter](
+  val database: String, val table: String, val fieldNames: List[String],
+  val externalPath: Option[String],  val partitionBatchSize: Int = 100
+) extends HiveTableSource[T] {
   /** List of partition column names and type (string by default). */
-  val partitionMetadata    = partition.fieldNames.map(n => (n, "string"))
+  val partitionMetadata    = fieldNames.map(n => (n, "string"))
   //Enforce the Hive partition pattern
-  val hivePartitionPattern = partition.fieldNames.map(_ + "=%s").mkString("/")
-  val partitionGlob        = partition.fieldNames.map(_ => "*").mkString("/")
+  val hivePartitionPattern = fieldNames.map(_ + "=%s").mkString("/")
+  val partitionGlob        = fieldNames.map(_ => "*").mkString("/")
   val hdfsPartitionGlob    = s"[^_.]$partitionGlob"
 
-  override def source: PartitionParquetScroogeSource[B, A] =
-    PartitionParquetScroogeSource[B, A](hivePartitionPattern, tablePath.toString)
+  override def source: PartitionParquetScroogeSource[P, T] =
+    PartitionParquetScroogeSource[P, T](hivePartitionPattern, tablePath.toString)
 
-  override def writeExecution(pipe: TypedPipe[A], append: Boolean = true): Execution[ExecutionCounters] = {
+  def writeToSink(pipe: TypedPipe[(P, T)], append: Boolean = true): Execution[ExecutionCounters] = {
     def modifyConfig(config: Config) = ConfHelper.createUniqueFilenames(config)
 
     def addPartitions(paths: List[Path]): Execution[Unit] =
       paths.grouped(partitionBatchSize)
-        .map((ps: List[Path]) => Execution.hive(Hive.addPartitions(database, table, partition.fieldNames, ps)))
+        .map((ps: List[Path]) => Execution.hive(Hive.addPartitions(database, table, fieldNames, ps)))
         .toList.sequence_
 
     def withTable(ops: Path => Execution[ExecutionCounters]): Execution[ExecutionCounters] =
       // Work around: `withSeparateCache` avoids keeping references in the scalding EvalCache, to allow gc
       Execution.withSeparateCache(for {
-       _             <- Execution.hive(Hive.createParquetTable[A](database, table, partitionMetadata, externalPath.map(new Path(_))))
+       _             <- Execution.hive(Hive.createParquetTable[T](database, table, partitionMetadata, externalPath.map(new Path(_))))
        tablePath     <- Execution.hive(Hive.getPath(database, table))
        foldersBefore <- Execution.hdfs(Hdfs.glob(tablePath, hdfsPartitionGlob))
        counter       <- ops(tablePath)
@@ -97,8 +103,7 @@ case class PartitionedHiveTable[A <: ThriftStruct : Manifest, B : Manifest : Tup
     // Runs the scalding job and gets the counters
     def write(path: Path) =
       pipe
-        .map(v => partition.extract(v) -> v)
-        .writeExecution(PartitionParquetScroogeSink[B, A](hivePartitionPattern, path.toString))
+        .writeExecution(PartitionParquetScroogeSink[P, T](hivePartitionPattern, path.toString))
         .getAndResetCounters
         .map(_._2)
 
@@ -131,25 +136,37 @@ case class PartitionedHiveTable[A <: ThriftStruct : Manifest, B : Manifest : Tup
   }
 }
 
-/** Information need to address/describe a specific unpartitioned hive table.*/
-case class UnpartitionedHiveTable[A <: ThriftStruct : Manifest](
-  database: String, table: String, externalPath: Option[String] = None
-) extends HiveTable[A, A] {
+/**
+  * Information need to address/describe a specific partitioned hive table where partition
+  * information can be derived from thrift data.
+  */
+case class PartitionedHiveTable[T <: ThriftStruct : Manifest, P : Manifest : TupleSetter](
+  override val database: String,  override val table: String, partition: Partition[T, P],
+  override val externalPath: Option[String] = None, override val partitionBatchSize: Int = 100
+) extends GenericPartitionedHiveTable[T, P](database, table, partition.fieldNames, externalPath, partitionBatchSize)
+  with HiveTable[T, (P, T)] {
+  override def writeExecution(pipe: TypedPipe[T], append: Boolean = true): Execution[ExecutionCounters] =
+    writeToSink( pipe.map(r => (partition.extract(r) -> r)), append)
+}
 
+/** Information need to address/describe a specific unpartitioned hive table.*/
+case class UnpartitionedHiveTable[T <: ThriftStruct : Manifest](
+  database: String, table: String, externalPath: Option[String] = None
+) extends HiveTable[T, T] {
   override def source =
-    ParquetScroogeSource[A](tablePath.toString)
+    ParquetScroogeSource[T](tablePath.toString)
 
   /** Writes the contents of the pipe to this HiveTable. */
-  override def writeExecution(pipe: TypedPipe[A], append: Boolean = true): Execution[ExecutionCounters] = {
+  override def writeExecution(pipe: TypedPipe[T], append: Boolean = true): Execution[ExecutionCounters] = {
     // Creates the hive table
     val setup = Execution.fromHive(
-      Hive.createParquetTable[A](database, table, List.empty, externalPath.map(new Path(_))) >>
+      Hive.createParquetTable[T](database, table, List.empty, externalPath.map(new Path(_))) >>
       Hive.getPath(database, table)
     )
 
     // Runs the scalding job and gets the counters
     def write(path: Path) = pipe
-      .writeExecution(ParquetScroogeSource[A](path.toString))
+      .writeExecution(ParquetScroogeSource[T](path.toString))
       .getAndResetCounters
       .map(_._2)
 
@@ -182,7 +199,7 @@ case class UnpartitionedHiveTable[A <: ThriftStruct : Manifest](
   }
 }
 
-/** Contructors for HiveTable. */
+/** Constructors for HiveTable. */
 object HiveTable {
   /** Information need to address/describe a specific partitioned hive table.*/
   def apply[A <: ThriftStruct : Manifest, B : Manifest : TupleSetter](
