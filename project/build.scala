@@ -34,14 +34,14 @@ import au.com.cba.omnia.humbug.HumbugSBT._
 object build extends Build {
   type Sett = Def.Setting[_]
 
-  val thermometerVersion = "1.4.2-20160414053315-99c196d"
-  val ebenezerVersion    = "0.22.1-20160204034124-98f33a8"
-  val beeswaxVersion     = "0.1.1-20160120052815-6bf77d2"
-  val omnitoolVersion    = "1.12.1-20160118033143-a5ca392"
-  val permafrostVersion  = "0.12.1-20160118050802-04ab58c"
-  val edgeVersion        = "3.6.0-20160118055439-77df442"
-  val humbugVersion      = "0.7.1-20160117233334-0be7ee9"
-  val parlourVersion     = "1.11.2-20160118033414-b9324c5"
+  val thermometerVersion = "1.4.3-20160617114144-562e6e0"
+  val ebenezerVersion    = "0.22.2-20160619063420-4eb964f"
+  val beeswaxVersion     = "0.1.2-20160619053150-80dbb0a"
+  val omnitoolVersion    = "1.14.1-20160617114243-1143bc9"
+  val permafrostVersion  = "0.13.0-20160718235343-68e0f07"
+  val edgeVersion        = "3.7.0-20160719010243-5c6c2dd"
+  val humbugVersion      = "0.7.2-20160617114039-c10e869"
+  val parlourVersion     = "1.12.1-20160719055041-8a79eeb"
 
   val scalikejdbc = noHadoop("org.scalikejdbc" %% "scalikejdbc" % "2.2.6")
     .exclude("org.joda", "joda-convert")
@@ -70,7 +70,7 @@ object build extends Build {
     ++ uniform.ghsettings
     ++ Seq[Sett](
          publishArtifact := false
-       , addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
+       , addCompilerPlugin(depend.macroParadise())
        , unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(example, schema, benchmark)
     )
   , aggregate = Seq(core, macros, scalding, api, test, schema)
@@ -136,7 +136,7 @@ object build extends Build {
          libraryDependencies <++= scalaVersion.apply(sv => Seq(
            "org.scala-lang" % "scala-reflect" % sv
          ) ++ depend.testing())
-       , addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
+       , addCompilerPlugin(depend.macroParadise())
     )
   ).dependsOn(core)
    .dependsOn(test % "test")
@@ -195,7 +195,7 @@ object build extends Build {
          )
        , parallelExecution in Test := false
        , sources in doc in Compile := List()
-       , addCompilerPlugin("org.scalamacros" % "paradise" % "2.0.1" cross CrossVersion.full)
+       , addCompilerPlugin(depend.macroParadise())
     )
   ).dependsOn(core)
    .dependsOn(macros)
