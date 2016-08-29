@@ -45,6 +45,9 @@ object Encode extends ProductTypeClassCompanion[Encode] {
   implicit val BooleanEncode: Encode[Boolean] =
     value(_.toString)
 
+  implicit val ShortEncode: Encode[Short] =
+    value(_.toString)
+
   implicit val IntEncode: Encode[Int] =
     value(_.toString)
 
