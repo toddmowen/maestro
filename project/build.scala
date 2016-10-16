@@ -36,7 +36,7 @@ object build extends Build {
   val permafrostVersion  = "0.6.0-20150427054837-708fd11"
   val edgeVersion        = "3.3.1-20150326052503-b0a7023"
   val humbugVersion      = "0.7.2-20160921045618-eb9fa48"
-  val parlourVersion     = "1.8.1-20150326035955-18bc8d9"
+  val parlourVersion     = "1.8.1-20150514031439-4c1f104"
 
   val scalikejdbc = noHadoop("org.scalikejdbc" %% "scalikejdbc" % "2.1.2").exclude("org.joda", "joda-convert")
 
